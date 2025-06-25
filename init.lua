@@ -89,6 +89,11 @@ P.S. You can delete this when you're done too. It's your config now! :)
 --  NOTE: Must happen before plugins are loaded (otherwise wrong leader will be used)
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
+-- NOTE: This is for nvim-tree:
+-- disable netrw at the very start of your init.lua
+vim.g.loaded_netrw = 1
+vim.g.loaded_netrwPlugin = 1
+-- NOTE: This was for nvim-tree ^
 
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = false
@@ -248,6 +253,25 @@ rtp:prepend(lazypath)
 require('lazy').setup({
   -- NOTE: Plugins can be added with a link (or for a github repo: 'owner/repo' link).
   'NMAC427/guess-indent.nvim', -- Detect tabstop and shiftwidth automatically
+  {
+    'windwp/nvim-autopairs',
+    event = 'InsertEnter',
+    config = function()
+      require('nvim-autopairs').setup()
+    end,
+  },
+  {
+    'nvim-tree/nvim-tree.lua',
+    version = '*',
+    lazy = false,
+    dependencies = {
+      'nvim-tree/nvim-web-devicons',
+    },
+    config = function()
+      require('nvim-tree').setup {}
+      vim.keymap.set('n', '<leader>e', '<cmd>NvimTreeToggle<CR>', { desc = 'Toggle File Explorer' })
+    end,
+  },
 
   -- NOTE: Plugins can also be added by using a table,
   -- with the first argument being the link and the following
@@ -1011,6 +1035,72 @@ require('lazy').setup({
     },
   },
 })
+
+-- NOTE: Custom code by Kai Ruth
+--NOTE: Line length limit
+vim.opt.colorcolumn = '81'
+vim.opt.textwidth = 80
+vim.api.nvim_set_hl(0, 'ColorColumn', { bg = '#2a2a2a' })
+-- NOTE: Save and run current Python file
+vim.keymap.set('n', '<leader>r', function()
+  if vim.bo.filetype == 'python' then
+    vim.cmd 'write' -- save the file
+    vim.cmd('!python ' .. vim.fn.expand '%') -- run it
+  else
+    print 'Not a Python file.'
+  end
+end, { desc = 'Run Python file' })
+
+--NOTE: Use the right python version
+
+require('lspconfig').pyright.setup {
+  settings = {
+    python = {
+      pythonPath = '/opt/miniconda3/envs/pyCourse/bin/python',
+    },
+  },
+}
+
+-- NOTE: Save and run current c++ file
+vim.keymap.set('n', '<leader>R', function()
+  vim.cmd 'w' -- write the file
+  local filename = vim.fn.expand '%:t:r' -- get filename without extension
+  local filepath = vim.fn.expand '%:p' -- full path
+  local compile_cmd = 'g++ -std=c++17 -Wall -Wextra -o ' .. filename .. ' ' .. filepath
+  local run_cmd = './' .. filename
+
+  -- Compile and run in a terminal split
+  vim.cmd('belowright split | terminal ' .. compile_cmd .. ' && ' .. run_cmd)
+end, { desc = 'Compile and Run C++' })
+
+--NOTE: Make the :Git diffthis split vertical
+vim.opt.diffopt:append 'vertical'
+
+--NOTE: Set tab and indentation width globally
+vim.opt.tabstop = 4 -- number of spaces that a <Tab> in the file counts for
+vim.opt.shiftwidth = 4 -- size of an indent
+vim.opt.softtabstop = 4 -- how many spaces a Tab feels like while editing
+vim.opt.expandtab = true -- convert tabs to spaces
+
+-- NOTE: Tweaks for nvim-tree:
+-- empty setup using defaults
+require('nvim-tree').setup()
+
+-- OR setup with some options
+require('nvim-tree').setup {
+  sort = {
+    sorter = 'case_sensitive',
+  },
+  view = {
+    width = 30,
+  },
+  renderer = {
+    group_empty = true,
+  },
+  filters = {
+    dotfiles = true,
+  },
+}
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
