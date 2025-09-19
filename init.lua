@@ -968,7 +968,7 @@ require('lazy').setup({
     main = 'nvim-treesitter.configs', -- Sets main module to use for opts
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
     opts = {
-      ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' },
+      ensure_installed = { 'bash', 'c', 'python', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' },
       -- Autoinstall languages that are not installed
       auto_install = true,
       highlight = {
@@ -1101,6 +1101,40 @@ require('nvim-tree').setup {
     dotfiles = true,
   },
 }
+---------------------------------------------------------------------
+-- 🧩  Treesitter folding for Python (drop-in snippet)
+---------------------------------------------------------------------
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'python',
+  callback = function()
+    -- If the TS parser exists use it, else fall back to indent folding
+    local has_parser = require('nvim-treesitter.parsers').has_parser 'python'
+    if has_parser then
+      vim.opt_local.foldmethod = 'expr'
 
+      -- Neovim ≥ 0.10 ships a Lua helper; fallback for older versions
+      if pcall(require, 'vim.treesitter') and vim.treesitter.foldexpr then
+        vim.opt_local.foldexpr = 'v:lua.vim.treesitter.foldexpr()'
+      else
+        vim.opt_local.foldexpr = 'nvim_treesitter#foldexpr()'
+      end
+    else
+      vim.opt_local.foldmethod = 'indent'
+      vim.opt_local.foldexpr = nil
+    end
+
+    -- open everything on load but leave folds enabled
+    vim.opt_local.foldenable = false
+    vim.opt_local.foldlevel = 99
+    vim.opt_local.foldlevelstart = 99
+  end,
+})
+-- make folded lines dimmer
+vim.api.nvim_set_hl(0, 'Folded', { fg = '#9aa0c0', bg = 'NONE', italic = false })
+-- in normal mode, option+{ → go to previous tab
+vim.keymap.set('n', '<A-{>', vim.cmd.tabprevious, { desc = 'Previous tab' })
+-- in normal mode, option+} → go to next tab
+vim.keymap.set('n', '<A-}>', vim.cmd.tabnext, { desc = 'Next tab' })
+---------------------------------------------------------------------
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
