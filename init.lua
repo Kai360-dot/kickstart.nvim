@@ -1184,6 +1184,15 @@ vim.keymap.set('n', '<A-{>', vim.cmd.tabprevious, { desc = 'Previous tab' })
 -- in normal mode, option+} → go to next tab
 vim.keymap.set('n', '<A-}>', vim.cmd.tabnext, { desc = 'Next tab' })
 vim.opt.relativenumber = true
+-- I am too stupid not to accidentally join lines...
+-- 1. Make plain J do nothing
+vim.keymap.set('n', 'J', '<Nop>', { desc = 'Disable default join on J' })
+
+-- 2. Put join on <C-j>
+--    (this will override the window-move mapping if it was defined earlier)
+vim.keymap.set('n', '<C-j>', 'J', { desc = 'Join lines' })
+-- activate plugin to guess indentation
+require('guess-indent').setup {}
 ---------------------------------------------------------------------
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
