@@ -261,13 +261,10 @@ require('lazy').setup({
     end,
   },
   {
-    -- for commenting out code
     'numToStr/Comment.nvim',
-    config = function()
-      require('Comment').setup {
-        -- you can override defaults here later
-      }
-    end,
+    opts = {
+      -- add any options here
+    },
   },
   {
     'nvim-tree/nvim-tree.lua',
@@ -752,17 +749,24 @@ require('lazy').setup({
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
+      -- 🔁 use the new Neovim LSP start-style for all mason LSPs
       require('mason-lspconfig').setup {
-        ensure_installed = {}, -- explicitly set to an empty table (Kickstart populates installs via mason-tool-installer)
-        automatic_installation = false,
+        -- this was your idea: “just enable them”
+        automatic_enable = true,
+        -- you let mason-tool-installer install stuff, so keep this empty
+        ensure_installed = {},
         handlers = {
           function(server_name)
-            local server = servers[server_name] or {}
-            -- This handles overriding only values explicitly passed
-            -- by the server configuration above. Useful when disabling
-            -- certain features of an LSP (for example, turning off formatting for ts_ls)
-            server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
-            require('lspconfig')[server_name].setup(server)
+            -- merge: base opts + your per-server table
+            local opts = vim.tbl_deep_extend('force', {
+              capabilities = capabilities,
+              -- your branch had this hardcoded root detection:
+              root_dir = vim.fs.root(0, { '.git' }),
+            }, servers[server_name] or {})
+
+            -- 👇 0.11-style
+            local cfg = vim.lsp.config(server_name, opts)
+            vim.lsp.start(cfg)
           end,
         },
       }
@@ -1062,13 +1066,19 @@ end, { desc = 'Run Python file' })
 
 --NOTE: Use the right python version
 
-require('lspconfig').pyright.setup {
+-- 0.11-style pyright, no lspconfig
+vim.lsp.config('pyright', {
+  cmd = { 'pyright-langserver', '--stdio' },
+  root_dir = vim.fs.root(0, { 'pyproject.toml', 'setup.cfg', 'setup.py', '.git' }),
   settings = {
     python = {
       pythonPath = '/opt/miniconda3/envs/pyCourse/bin/python',
     },
   },
-}
+})
+
+-- actually start it
+vim.lsp.enable 'pyright'
 
 -- NOTE: Save and run current c++ file
 vim.keymap.set('n', '<leader>R', function()
