@@ -261,6 +261,15 @@ require('lazy').setup({
     end,
   },
   {
+    -- for commenting out code
+    'numToStr/Comment.nvim',
+    config = function()
+      require('Comment').setup {
+        -- you can override defaults here later
+      }
+    end,
+  },
+  {
     'nvim-tree/nvim-tree.lua',
     version = '*',
     lazy = false,
@@ -1101,6 +1110,35 @@ require('nvim-tree').setup {
     dotfiles = true,
   },
 }
+-- 🌳 extra nvim-tree mappings (from brokenButFeatureful)
+require('nvim-tree').setup {
+  -- keep whatever you already had here: sort/view/renderer/filters…
+  on_attach = function(bufnr)
+    local api = require 'nvim-tree.api'
+
+    -- keep defaults
+    api.config.mappings.default_on_attach(bufnr)
+
+    -- helper for buffer-local maps
+    local function opts(desc)
+      return { desc = 'nvim-tree: ' .. desc, buffer = bufnr, noremap = true, silent = true, nowait = true }
+    end
+
+    -- remove default <C-t> to avoid clash
+    pcall(vim.keymap.del, 'n', '<C-t>', { buffer = bufnr })
+
+    -- open in new tab but KEEP focus in the tree
+    local function open_in_new_tab_keep_focus()
+      local win = vim.api.nvim_get_current_win()
+      api.node.open.tab()
+      vim.api.nvim_set_current_win(win)
+    end
+
+    vim.keymap.set('n', '<C-t>', open_in_new_tab_keep_focus, opts 'Open in new tab (keep focus)')
+    vim.keymap.set('n', '<C-y>', open_in_new_tab_keep_focus, opts 'Open in new tab (keep focus)')
+  end,
+}
+
 ---------------------------------------------------------------------
 -- 🧩  Treesitter folding for Python (drop-in snippet)
 ---------------------------------------------------------------------
@@ -1135,6 +1173,7 @@ vim.api.nvim_set_hl(0, 'Folded', { fg = '#9aa0c0', bg = 'NONE', italic = false }
 vim.keymap.set('n', '<A-{>', vim.cmd.tabprevious, { desc = 'Previous tab' })
 -- in normal mode, option+} → go to next tab
 vim.keymap.set('n', '<A-}>', vim.cmd.tabnext, { desc = 'Next tab' })
+vim.opt.relativenumber = true
 ---------------------------------------------------------------------
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
