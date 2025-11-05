@@ -1193,6 +1193,18 @@ vim.keymap.set('n', 'J', '<Nop>', { desc = 'Disable default join on J' })
 vim.keymap.set('n', '<C-j>', 'J', { desc = 'Join lines' })
 -- activate plugin to guess indentation
 require('guess-indent').setup {}
+
+local function buildAndTestShortcut()
+  vim.cmd 'w'
+  local project_dir = '/Users/kairuth/Desktop/SoftwareEngineering/Poker'
+  local build_cmd = 'cd ' .. project_dir .. ' && ./BuildAndTest.sh'
+
+  vim.cmd('belowright split | terminal ' .. build_cmd)
+end
+-- for project Poker C++
+vim.keymap.set('n', '<leader>b', buildAndTestShortcut, { desc = 'Run build script' })
+-- reown 's'
+vim.keymap.set('n', 's', 's', { remap = true, desc = 'Restore default s' })
 ---------------------------------------------------------------------
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
