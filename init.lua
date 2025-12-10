@@ -459,11 +459,56 @@ require('lazy').setup({
         -- You can put your default mappings / updates / etc. in here
         --  All the info you're looking for is in `:help telescope.setup()`
         --
-        -- defaults = {
-        --   mappings = {
-        --     i = { ['<c-enter>'] = 'to_fuzzy_refine' },
-        --   },
-        -- },
+        defaults = {
+          mappings = {
+            i = {
+              ['<c-enter>'] = 'to_fuzzy_refine',
+              -- ['<C-t>'] = function(prompt_bufnr)
+              --   local action_state = require 'telescope.actions.state'
+              --   local actions = require 'telescope.actions'
+              --   local entry = action_state.get_selected_entry()
+              --   if entry and entry.path then
+              --     local current_tab = vim.fn.tabpagenr()
+              --     actions.close(prompt_bufnr)
+              --     vim.cmd('tabnew ' .. vim.fn.fnameescape(entry.path))
+              --     vim.cmd('tabnext ' .. current_tab)
+              --     -- Reopen telescope where we left off
+              --     require('telescope.builtin').resume()
+              --   end
+              -- end,
+              ['<C-t>'] = function(prompt_bufnr)
+                local action_state = require 'telescope.actions.state'
+                local actions = require 'telescope.actions'
+                local entry = action_state.get_selected_entry()
+                if entry and entry.path then
+                  local current_tab = vim.fn.tabpagenr()
+                  local lnum = entry.lnum or 1
+                  local col = entry.col or 1
+                  actions.close(prompt_bufnr)
+                  vim.cmd('tabnew ' .. vim.fn.fnameescape(entry.path))
+                  vim.api.nvim_win_set_cursor(0, { lnum, col - 1 }) -- col is 0-indexed in API
+                  vim.cmd 'normal! zz' -- center the line on screen
+                  vim.cmd('tabnext ' .. current_tab)
+                  require('telescope.builtin').resume()
+                end
+              end,
+            },
+            n = {
+              ['<C-t>'] = function(prompt_bufnr)
+                local action_state = require 'telescope.actions.state'
+                local actions = require 'telescope.actions'
+                local entry = action_state.get_selected_entry()
+                if entry and entry.path then
+                  local current_tab = vim.fn.tabpagenr()
+                  actions.close(prompt_bufnr)
+                  vim.cmd('tabnew ' .. vim.fn.fnameescape(entry.path))
+                  vim.cmd('tabnext ' .. current_tab)
+                  require('telescope.builtin').resume()
+                end
+              end,
+            },
+          },
+        },
         -- pickers = {}
         extensions = {
           ['ui-select'] = {
