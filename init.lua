@@ -180,6 +180,8 @@ vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
 -- Diagnostic keymaps
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
+-- In your telescope config or keymaps
+vim.keymap.set('n', '<leader>wd', '<cmd>Telescope diagnostics<cr>', { desc = 'Workspace diagnostics' })
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
@@ -381,6 +383,26 @@ require('lazy').setup({
     },
   },
 
+  {
+    'kdheepak/lazygit.nvim',
+    cmd = {
+      'LazyGit',
+      'LazyGitConfig',
+      'LazyGitCurrentFile',
+      'LazyGitFilter',
+      'LazyGitFilterCurrentFile',
+    },
+    -- optional for floating window border decoration
+    dependencies = {
+      'nvim-lua/plenary.nvim',
+    },
+    -- setting the keybinding for LazyGit with 'keys' is recommended in
+    -- order to load the plugin when the command is run for the first time
+    keys = {
+      { '<leader>lg', '<cmd>LazyGit<cr>', desc = 'Open lazy git' },
+    },
+  },
+
   -- NOTE: Plugins can specify dependencies.
   --
   -- The dependencies are proper plugin specifications as well - anything
@@ -565,6 +587,14 @@ require('lazy').setup({
             vim.keymap.set(mode, keys, func, { buffer = event.buf, desc = 'LSP: ' .. desc })
           end
 
+          -- FIXME: potentially
+          local map = function(keys, func, desc, mode)
+            mode = mode or 'n'
+            vim.keymap.set(mode, keys, func, { buffer = event.buf, desc = 'LSP: ' .. desc })
+          end
+
+          map('<leader>cd', vim.lsp.buf.code_action, '[C]reate [D]efinition', { 'n', 'x' })
+
           -- Rename the variable under your cursor.
           --  Most Language Servers support renaming across files, etc.
           map('grn', vim.lsp.buf.rename, '[R]e[n]ame')
@@ -701,7 +731,27 @@ require('lazy').setup({
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
-        -- clangd = {},
+        clangd = {
+          cmd = {
+            'clangd',
+            '--background-index',
+            '--clang-tidy',
+            '--header-insertion=iwyu',
+            '--completion-style=detailed',
+            '--function-arg-placeholders',
+            '--fallback-style=llvm',
+            '--all-scopes-completion',
+            '--cross-file-rename',
+            '--completion-parse=auto',
+          },
+          -- This ensures clangd provides code actions for missing definitions
+          init_options = {
+            clangdFileStatus = true,
+            usePlaceholders = true,
+            completeUnimported = true,
+            semanticHighlighting = true,
+          },
+        },
         -- gopls = {},
         -- pyright = {},
         -- rust_analyzer = {},
@@ -981,7 +1031,7 @@ require('lazy').setup({
     main = 'nvim-treesitter.configs', -- Sets main module to use for opts
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
     opts = {
-      ensure_installed = { 'bash', 'c', 'python', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' },
+      ensure_installed = { 'bash', 'c', 'python', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc', 'cpp' },
       -- Autoinstall languages that are not installed
       auto_install = true,
       highlight = {
@@ -1178,19 +1228,20 @@ vim.api.nvim_create_autocmd('FileType', {
   end,
 })
 -- make folded lines dimmer
-vim.api.nvim_set_hl(0, 'Folded', { fg = '#9aa0c0', bg = 'NONE', italic = false })
+vim.api.nvim_set_hl(0, 'Folded', { fg = '#e37d3b', bg = 'NONE', italic = false, bold = true })
 -- in normal mode, option+{ → go to previous tab
 vim.keymap.set('n', '<A-{>', vim.cmd.tabprevious, { desc = 'Previous tab' })
 -- in normal mode, option+} → go to next tab
 vim.keymap.set('n', '<A-}>', vim.cmd.tabnext, { desc = 'Next tab' })
 vim.opt.relativenumber = true
 -- I am too stupid not to accidentally join lines...
+
 -- 1. Make plain J do nothing
 vim.keymap.set('n', 'J', '<Nop>', { desc = 'Disable default join on J' })
 
--- 2. Put join on <C-j>
---    (this will override the window-move mapping if it was defined earlier)
-vim.keymap.set('n', '<C-j>', 'J', { desc = 'Join lines' })
+-- 2. Put join on Option + j (⌥ + j)
+vim.keymap.set('n', '<A-j>', 'J', { desc = 'Join lines with Option+J' })
+
 -- activate plugin to guess indentation
 require('guess-indent').setup {}
 
@@ -1205,6 +1256,42 @@ end
 vim.keymap.set('n', '<leader>b', buildAndTestShortcut, { desc = 'Run build script' })
 -- reown 's'
 vim.keymap.set('n', 's', 's', { remap = true, desc = 'Restore default s' })
+
+vim.opt.foldmethod = 'expr'
+vim.opt.foldexpr = 'v:lua.vim.treesitter.foldexpr()'
+vim.opt.foldenable = true
+vim.opt.foldlevel = 99
+vim.opt.foldlevelstart = 99
+-- no wrap around in search
+vim.o.wrapscan = false
+
+-- keymap for gitsigns line toggle
+-- Leader-gl toggles current line blame
+vim.keymap.set('n', '<leader>gl', function()
+  require('gitsigns').toggle_current_line_blame()
+end, { desc = 'Gitsigns: toggle line blame' })
+
+-- compile commands to remove clangd warnings
+vim.keymap.set('n', '<leader>cc', function()
+  -- Run CMake to generate compile_commands.json
+  vim.fn.jobstart({ 'cmake', '-S', '.', '-B', 'build', '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON' }, {
+    stdout_buffered = true,
+    on_stdout = function(_, data)
+      print(table.concat(data, '\n'))
+    end,
+    on_stderr = function(_, data)
+      print(table.concat(data, '\n'))
+    end,
+  })
+
+  -- Symlink compile_commands.json
+  vim.fn.jobstart { 'ln', '-sf', 'build/compile_commands.json', '.' }
+
+  print '🔧 compile_commands.json generated & linked!'
+end, {
+  desc = 'Generate compile_commands.json and symlink it',
+})
+
 ---------------------------------------------------------------------
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
