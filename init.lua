@@ -98,6 +98,9 @@ vim.g.loaded_netrwPlugin = 1
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = false
 
+-- Force true-color support (needed for correct colors inside tmux)
+vim.o.termguicolors = true
+
 -- [[ Setting options ]]
 -- See `:help vim.o`
 -- NOTE: You can change these options as you wish!
@@ -329,7 +332,6 @@ require('lazy').setup({
   --
   -- Then, because we use the `opts` key (recommended), the configuration runs
   -- after the plugin has been loaded as `require(MODULE).setup(opts)`.
-
   { -- Useful plugin to show you pending keybinds.
     'folke/which-key.nvim',
     event = 'VimEnter', -- Sets the loading event to 'VimEnter'
@@ -400,6 +402,26 @@ require('lazy').setup({
     -- order to load the plugin when the command is run for the first time
     keys = {
       { '<leader>lg', '<cmd>LazyGit<cr>', desc = 'Open lazy git' },
+    },
+  },
+  {
+    'gbprod/yanky.nvim',
+    opts = {
+      ring = {
+        history_length = 100,
+        storage = 'shada',
+      },
+      highlight = {
+        on_put = true,
+        on_yank = true,
+        timer = 200,
+      },
+    },
+    keys = {
+      { 'p', '<Plug>(YankyPutAfter)', mode = { 'n', 'x' } },
+      { 'P', '<Plug>(YankyPutBefore)', mode = { 'n', 'x' } },
+      { '<c-p>', '<Plug>(YankyPreviousEntry)', desc = 'Cycle to previous yank' },
+      { '<c-n>', '<Plug>(YankyNextEntry)', desc = 'Cycle to next yank' },
     },
   },
 
@@ -938,7 +960,10 @@ require('lazy').setup({
           --   end,
           -- },
         },
-        opts = {},
+        config = function()
+          require('luasnip').setup {}
+          require('luasnip.loaders.from_lua').load { paths = { '~/.config/nvim/lua/snippets' } }
+        end,
       },
       'folke/lazydev.nvim',
     },
@@ -1027,11 +1052,27 @@ require('lazy').setup({
       -- Like many other themes, this one has different styles, and you could load
       -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
       vim.cmd.colorscheme 'tokyonight-night'
+      vim.api.nvim_set_hl(0, 'Comment', { fg = '#7a7a7a', italic = true })
     end,
   },
 
   -- Highlight todo, notes, etc in comments
-  { 'folke/todo-comments.nvim', event = 'VimEnter', dependencies = { 'nvim-lua/plenary.nvim' }, opts = { signs = false } },
+  {
+    'folke/todo-comments.nvim',
+    event = 'VimEnter',
+    dependencies = { 'nvim-lua/plenary.nvim' },
+    opts = {
+      signs = false,
+      colors = {
+        error = { '#7A5555' },
+        warning = { '#7A6E4A' },
+        info = { '#4A5A7A' },
+        hint = { '#4A7A62' },
+        default = { '#6A5A7A' },
+        test = { '#7A4A7A' },
+      },
+    },
+  },
 
   { -- Collection of various small independent plugins/modules
     'echasnovski/mini.nvim',
@@ -1094,6 +1135,16 @@ require('lazy').setup({
     --    - Incremental selection: Included, see `:help nvim-treesitter-incremental-selection-mod`
     --    - Show your current context: https://github.com/nvim-treesitter/nvim-treesitter-context
     --    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
+  },
+  {
+    'nvim-treesitter/nvim-treesitter-context',
+    dependencies = { 'nvim-treesitter/nvim-treesitter' },
+    opts = {
+      max_lines = 3, -- how many context lines to show
+      multiline_threshold = 1, -- max lines for a single context node
+      separator = '─', -- horizontal line separator
+      trim_scope = 'inner',
+    },
   },
 
   -- The following comments only work if you have downloaded the kickstart repo, not just copy pasted the
@@ -1167,7 +1218,7 @@ vim.lsp.config('pyright', {
   root_dir = vim.fs.root(0, { 'pyproject.toml', 'setup.cfg', 'setup.py', '.git' }),
   settings = {
     python = {
-      pythonPath = '/opt/miniconda3/envs/pyCourse/bin/python',
+      pythonPath = vim.env.VIRTUAL_ENV and (vim.env.VIRTUAL_ENV .. '/bin/python') or '/opt/miniconda3/envs/pyCourse/bin/python',
     },
   },
 })
@@ -1180,7 +1231,7 @@ vim.keymap.set('n', '<leader>R', function()
   vim.cmd 'w' -- write the file
   local filename = vim.fn.expand '%:t:r' -- get filename without extension
   local filepath = vim.fn.expand '%:p' -- full path
-  local compile_cmd = 'g++ -std=c++17 -Wall -Wextra -o ' .. filename .. ' ' .. filepath
+  local compile_cmd = 'g++ -std=c++20 -Wall -Wextra -o ' .. filename .. ' ' .. filepath
   local run_cmd = './' .. filename
 
   -- Compile and run in a terminal split
@@ -1279,6 +1330,19 @@ vim.keymap.set('n', '<A-{>', vim.cmd.tabprevious, { desc = 'Previous tab' })
 -- in normal mode, option+} → go to next tab
 vim.keymap.set('n', '<A-}>', vim.cmd.tabnext, { desc = 'Next tab' })
 vim.opt.relativenumber = true
+
+-- customize context lines (orange background, matching colorcolumn at 81)
+local function set_context_highlights()
+  vim.api.nvim_set_hl(0, 'TreesitterContext', { bg = '#3d2a1a' }) -- dark orange/brown bg
+  vim.api.nvim_set_hl(0, 'TreesitterContextLineNumber', { fg = '#e37d3b', bg = '#3d2a1a' })
+  vim.api.nvim_set_hl(0, 'TreesitterContextSeparator', { fg = '#e37d3b' }) -- orange separator line
+end
+set_context_highlights()
+
+vim.api.nvim_create_autocmd('ColorScheme', {
+  callback = set_context_highlights,
+})
+
 -- I am too stupid not to accidentally join lines...
 
 -- 1. Make plain J do nothing
@@ -1336,6 +1400,29 @@ vim.keymap.set('n', '<leader>cc', function()
 end, {
   desc = 'Generate compile_commands.json and symlink it',
 })
+
+vim.api.nvim_create_user_command('Snippets', 'edit ~/.config/nvim/lua/snippets/all/init.lua', { desc = 'Edit snippets file' })
+
+vim.keymap.set('n', '<leader>cf', function()
+  local file = vim.api.nvim_buf_get_name(0)
+  if not (file:match '%.cpp$' or file:match '%.hpp$') then
+    print 'Not a .cpp/.hpp file'
+    return
+  end
+  vim.cmd 'w'
+  vim.fn.jobstart({ 'clang-format', '-style=google', '-i', file }, {
+    on_exit = function(_, code)
+      vim.schedule(function()
+        if code == 0 then
+          vim.cmd 'checktime'
+          print 'clang-format done'
+        else
+          print('clang-format failed (exit ' .. code .. ')')
+        end
+      end)
+    end,
+  })
+end, { desc = '[C]lang [F]ormat current buffer' })
 
 ---------------------------------------------------------------------
 -- The line beneath this is called `modeline`. See `:help modeline`
