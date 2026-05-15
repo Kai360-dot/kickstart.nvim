@@ -1115,6 +1115,7 @@ require('lazy').setup({
     'nvim-treesitter/nvim-treesitter',
     build = ':TSUpdate',
     main = 'nvim-treesitter.configs', -- Sets main module to use for opts
+    branch = 'master',
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
     opts = {
       ensure_installed = { 'bash', 'c', 'python', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc', 'cpp' },
@@ -1211,27 +1212,58 @@ vim.api.nvim_create_autocmd('FileType', {
 vim.opt.colorcolumn = '81'
 vim.opt.textwidth = 80
 vim.api.nvim_set_hl(0, 'ColorColumn', { bg = '#2a2a2a' })
+--NOTE: Use the right python version
+
+local function detect_python_path(root)
+  local function venv_python(dir)
+    for _, name in ipairs { '.venv', 'venv' } do
+      local py = dir .. '/' .. name .. '/bin/python'
+      if vim.fn.executable(py) == 1 then
+        return py
+      end
+    end
+  end
+  local dir = root or vim.fn.getcwd()
+  while dir and dir ~= '' do
+    local py = venv_python(dir)
+    if py then
+      return py
+    end
+    local parent = vim.fn.fnamemodify(dir, ':h')
+    if parent == dir then
+      break
+    end
+    dir = parent
+  end
+  if vim.env.VIRTUAL_ENV then
+    return vim.env.VIRTUAL_ENV .. '/bin/python'
+  end
+  return '/opt/miniconda3/envs/pyCourse/bin/python'
+end
+
 -- NOTE: Save and run current Python file
 vim.keymap.set('n', '<leader>r', function()
   if vim.bo.filetype == 'python' then
-    vim.cmd 'write' -- save the file
-    vim.cmd('!python ' .. vim.fn.expand '%') -- run it
+    vim.cmd 'write'
+    local file = vim.fn.expand '%:p'
+    local root = vim.fn.fnamemodify(file, ':h')
+    local py = detect_python_path(root)
+    vim.cmd('!' .. vim.fn.shellescape(py) .. ' ' .. vim.fn.shellescape(file))
   else
     print 'Not a Python file.'
   end
 end, { desc = 'Run Python file' })
 
---NOTE: Use the right python version
-
 -- 0.11-style pyright, no lspconfig
+
 vim.lsp.config('pyright', {
   cmd = { 'pyright-langserver', '--stdio' },
-  root_dir = vim.fs.root(0, { 'pyproject.toml', 'setup.cfg', 'setup.py', '.git' }),
-  settings = {
-    python = {
-      pythonPath = vim.env.VIRTUAL_ENV and (vim.env.VIRTUAL_ENV .. '/bin/python') or '/opt/miniconda3/envs/pyCourse/bin/python',
-    },
-  },
+  root_markers = { 'pyproject.toml', 'setup.cfg', 'setup.py', '.git' },
+  before_init = function(_, config)
+    config.settings = config.settings or {}
+    config.settings.python = config.settings.python or {}
+    config.settings.python.pythonPath = detect_python_path(config.root_dir)
+  end,
 })
 
 -- actually start it
@@ -1248,6 +1280,16 @@ vim.keymap.set('n', '<leader>R', function()
   -- Compile and run in a terminal split
   vim.cmd('belowright split | terminal ' .. compile_cmd .. ' && ' .. run_cmd)
 end, { desc = 'Compile and Run C++' })
+
+-- NOTE: Save and run current C file
+vim.keymap.set('n', '<leader>K', function()
+  vim.cmd 'w'
+  local filename = vim.fn.expand '%:t:r'
+  local filepath = vim.fn.expand '%:p'
+  local compile_cmd = 'gcc -std=c23 -Wall -Wextra -Wpedantic -o ' .. filename .. ' ' .. filepath
+  local run_cmd = './' .. filename
+  vim.cmd('belowright split | terminal ' .. compile_cmd .. ' && ' .. run_cmd)
+end, { desc = 'Compile and Run C' })
 
 --NOTE: Make the :Git diffthis split vertical
 vim.opt.diffopt:append 'vertical'
