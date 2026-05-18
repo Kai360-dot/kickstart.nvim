@@ -21,6 +21,26 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_executable(app main.cpp)]]
   ),
   simple(
+    'gnuplot',
+    [[// NOTE: popen opens a program according to POSIX specs
+FILE* gnuPipe = popen("gnuplot -persistent", "w");
+if (gnuPipe == NULL) {
+  perror("popen");
+  return 1;
+}
+// WSLg: 'set terminal wxt persist' is needed so the window survives pclose.
+// '-persistent' alone is unreliable when the wxt backend isn't warm yet.
+fprintf(gnuPipe, "set terminal wxt persist\n");
+fprintf(gnuPipe, "set title 'demo'\n");
+fprintf(gnuPipe, "plot '-' with linespoints\n");
+for (int i = 0; i < 10; ++i) {
+  fprintf(gnuPipe, "%d %d\n", i, i * i);
+}
+fprintf(gnuPipe, "e\n");
+fflush(gnuPipe);
+pclose(gnuPipe);]]
+  ),
+  simple(
     'bitflag',
     [[enum class Flags : uint32_t {
     NONE = 0,
