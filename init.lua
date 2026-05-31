@@ -1456,6 +1456,141 @@ end, {
 
 vim.api.nvim_create_user_command('Snippets', 'edit ~/.config/nvim/lua/snippets/all/init.lua', { desc = 'Edit snippets file' })
 
+-- ┌─────────────────────────────────────────────────────────────────────────┐
+-- │ Create / update a `simple(...)` snippet straight from a visual selection. │
+-- │   1. Visually select the lines you want.                                  │
+-- │   2. Press <leader>sa  (or :'<,'>SnippetAdd).                             │
+-- │   3. Type a trigger name. If it already exists, the snippet is replaced;  │
+-- │      otherwise it's appended. The file is hot-reloaded so it's usable now. │
+-- └─────────────────────────────────────────────────────────────────────────┘
+do
+  local snippets_file = vim.fn.expand '~/.config/nvim/lua/snippets/all/init.lua'
+
+  -- Locate an existing `simple('name', ...)` block; returns start,end line numbers (1-based) or nil.
+  local function find_simple_block(lines, name)
+    for idx = 1, #lines do
+      if lines[idx]:match '^%s*simple%(%s*$' then
+        -- next non-blank line should be the trigger string
+        local j = idx + 1
+        while j <= #lines and lines[j]:match '^%s*$' do
+          j = j + 1
+        end
+        if lines[j] and lines[j]:match "^%s*'(.-)',%s*$" == name then
+          -- find the opening long-bracket and capture its '=' level
+          local k, eq = j + 1, nil
+          while k <= #lines do
+            eq = lines[k]:match '%[(=*)%['
+            if eq then
+              break
+            end
+            k = k + 1
+          end
+          if not eq then
+            return nil
+          end
+          -- find the closing delimiter, then the block-closing `),`
+          local close = ']' .. eq .. ']'
+          local m = k
+          while m <= #lines and not lines[m]:find(close, 1, true) do
+            m = m + 1
+          end
+          if m > #lines then
+            return nil
+          end
+          local n = m
+          while n <= #lines and not lines[n]:match '^%s*%),%s*$' do
+            n = n + 1
+          end
+          return idx, (n <= #lines) and n or m
+        end
+      end
+    end
+    return nil
+  end
+
+  local function add_snippet_from_range(line1, line2)
+    local sel = vim.api.nvim_buf_get_lines(0, line1 - 1, line2, false)
+    if #sel == 0 then
+      vim.notify('No lines selected', vim.log.levels.WARN)
+      return
+    end
+    local body = table.concat(sel, '\n')
+
+    vim.ui.input({ prompt = 'Snippet trigger name: ' }, function(name)
+      if not name or name:match '^%s*$' then
+        vim.notify('Snippet cancelled', vim.log.levels.INFO)
+        return
+      end
+      name = vim.trim(name)
+
+      -- pick a long-bracket level that can't collide with the selected body
+      local eq = ''
+      while body:find('[' .. eq .. '[', 1, true) or body:find(']' .. eq .. ']', 1, true) do
+        eq = eq .. '='
+      end
+      local open, close = '[' .. eq .. '[', ']' .. eq .. ']'
+
+      -- build the `simple(...)` block (newline after `[[` is dropped by Lua,
+      -- and the close is appended to the last line to avoid a trailing blank line)
+      local block = { '  simple(', "    '" .. name .. "',", '    ' .. open }
+      for _, l in ipairs(sel) do
+        table.insert(block, l)
+      end
+      block[#block] = block[#block] .. close
+      table.insert(block, '  ),')
+
+      local file_lines = vim.fn.readfile(snippets_file)
+      local action
+      local s_idx, e_idx = find_simple_block(file_lines, name)
+      if s_idx then
+        -- overwrite: splice the new block in place of the old one
+        for _ = s_idx, e_idx do
+          table.remove(file_lines, s_idx)
+        end
+        for off, l in ipairs(block) do
+          table.insert(file_lines, s_idx + off - 1, l)
+        end
+        action = 'updated'
+      else
+        -- append: insert just before the final `}` that closes the return table
+        local insert_at
+        for idx = #file_lines, 1, -1 do
+          if file_lines[idx]:match '^%s*}%s*$' then
+            insert_at = idx
+            break
+          end
+        end
+        if not insert_at then
+          vim.notify('Could not find closing `}` in snippets file', vim.log.levels.ERROR)
+          return
+        end
+        for off, l in ipairs(block) do
+          table.insert(file_lines, insert_at + off - 1, l)
+        end
+        action = 'added'
+      end
+
+      vim.fn.writefile(file_lines, snippets_file)
+      require('luasnip.loaders.from_lua').load { paths = { '~/.config/nvim/lua/snippets' } }
+      -- if the snippets file is open in a buffer, refresh it so it isn't stale
+      for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_is_loaded(buf) and vim.api.nvim_buf_get_name(buf) == snippets_file then
+          vim.api.nvim_buf_call(buf, function()
+            vim.cmd 'checktime'
+          end)
+        end
+      end
+      vim.notify(("Snippet '%s' %s ✓"):format(name, action), vim.log.levels.INFO)
+    end)
+  end
+
+  vim.api.nvim_create_user_command('SnippetAdd', function(opts)
+    add_snippet_from_range(opts.line1, opts.line2)
+  end, { range = true, desc = 'Create/update a snippet from the selected lines' })
+
+  vim.keymap.set('x', '<leader>sa', ':SnippetAdd<CR>', { desc = '[S]nippet [A]dd from selection' })
+end
+
 vim.keymap.set('n', '<leader>cf', function()
   local file = vim.api.nvim_buf_get_name(0)
   if not (file:match '%.cpp$' or file:match '%.hpp$') then
