@@ -98,6 +98,25 @@ vim.g.loaded_netrwPlugin = 1
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = false
 
+-- Personal global clang-format style, shipped with this config so it follows
+-- the repo to any machine. clangd/clang-format walk up from a file's directory
+-- and use the nearest .clang-format, so this ~/.clang-format is the default for
+-- all C++ under $HOME, while any repo's own .clang-format (closer to the file)
+-- transparently overrides it. Written only if absent, so local edits survive.
+do
+  local global_clang_format = vim.fn.expand '~/.clang-format'
+  if vim.fn.filereadable(global_clang_format) == 0 then
+    vim.fn.writefile({
+      'BasedOnStyle: Google',
+      'BreakBeforeBraces: Allman',
+      'PointerAlignment: Left',
+      'ReferenceAlignment: Left',
+      'DerivePointerAlignment: false',
+      '',
+    }, global_clang_format)
+  end
+end
+
 -- Force true-color support (needed for correct colors inside tmux)
 vim.o.termguicolors = true
 
@@ -185,6 +204,24 @@ vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
 -- In your telescope config or keymaps
 vim.keymap.set('n', '<leader>wd', '<cmd>Telescope diagnostics<cr>', { desc = 'Workspace diagnostics' })
+
+-- Insert a C/C++ include guard derived from the file name.
+--   helper.hpp -> HELPER_HPP ; mixing_tank_membrane.hpp -> MIXING_TANK_MEMBRANE_HPP
+-- Wraps the whole buffer, so it works on empty AND already-populated headers.
+vim.keymap.set('n', '<leader>ig', function()
+  local name = vim.fn.expand '%:t'
+  if name == '' then
+    vim.notify('Buffer has no file name yet — save it first', vim.log.levels.WARN)
+    return
+  end
+  local guard = (name:gsub('[^%w]', '_')):upper()
+  -- open the guard at the top of the buffer
+  vim.api.nvim_buf_set_lines(0, 0, 0, false, { '#ifndef ' .. guard, '#define ' .. guard, '' })
+  -- close it at the bottom
+  vim.api.nvim_buf_set_lines(0, -1, -1, false, { '', '#endif  // ' .. guard })
+  -- park the cursor on the empty body line between #define and the content
+  vim.api.nvim_win_set_cursor(0, { 3, 0 })
+end, { desc = 'Insert [I]nclude [G]uard from filename' })
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
@@ -806,7 +843,10 @@ require('lazy').setup({
             '--header-insertion=iwyu',
             '--completion-style=detailed',
             '--function-arg-placeholders',
-            '--fallback-style=llvm',
+            -- NOTE: --fallback-style only accepts a *named* style (not inline
+            -- YAML). It is used only when no .clang-format is found; your
+            -- ~/.clang-format (Google + Allman) covers everything under $HOME.
+            '--fallback-style=Microsoft',
             '--all-scopes-completion',
             '--cross-file-rename',
             '--completion-parse=auto',
@@ -905,23 +945,21 @@ require('lazy').setup({
       },
     },
     opts = {
-      notify_on_error = false,
-      format_on_save = function(bufnr)
-        -- Disable "format_on_save lsp_fallback" for languages that don't
-        -- have a well standardized coding style. You can add additional
-        -- languages here or re-enable it for the disabled ones.
-        local disable_filetypes = { c = true, cpp = true }
-        if disable_filetypes[vim.bo[bufnr].filetype] then
-          return nil
-        else
-          return {
-            timeout_ms = 500,
-            lsp_format = 'fallback',
-          }
-        end
-      end,
+      -- Surface formatter errors instead of failing silently.
+      notify_on_error = true,
+      -- No format-on-save: formatting is always triggered manually via <leader>f.
+      -- To re-enable, set format_on_save back to a function/table here.
+      format_on_save = nil,
       formatters_by_ft = {
         lua = { 'stylua' },
+        -- C/C++ -> run clang-format directly (no dependence on clangd being
+        -- attached). With no -style arg it searches up from the file path and
+        -- uses the nearest .clang-format (a repo's own, else ~/.clang-format).
+        c = { 'clang-format' },
+        cpp = { 'clang-format' },
+        -- CMakeLists.txt / *.cmake -> formatted with cmake-format (from the
+        -- `cmakelang` Mason package). Runs on <leader>f and on save.
+        cmake = { 'cmake_format' },
         -- Conform can also run multiple formatters sequentially
         -- python = { "isort", "black" },
         --
@@ -1336,15 +1374,30 @@ require('nvim-tree').setup {
     -- remove default <C-t> to avoid clash
     pcall(vim.keymap.del, 'n', '<C-t>', { buffer = bufnr })
 
-    -- open in new tab but KEEP focus in the tree
-    local function open_in_new_tab_keep_focus()
-      local win = vim.api.nvim_get_current_win()
-      api.node.open.tab()
-      vim.api.nvim_set_current_win(win)
+    -- Wrap any open action so focus snaps back to the tree afterwards.
+    -- Lets you open several files in a row without re-entering the tree each time.
+    local function keep_focus(open_fn)
+      return function()
+        local win = vim.api.nvim_get_current_win()
+        open_fn()
+        if vim.api.nvim_win_is_valid(win) then
+          vim.api.nvim_set_current_win(win)
+        end
+      end
     end
 
-    vim.keymap.set('n', '<C-t>', open_in_new_tab_keep_focus, opts 'Open in new tab (keep focus)')
-    vim.keymap.set('n', '<C-y>', open_in_new_tab_keep_focus, opts 'Open in new tab (keep focus)')
+    vim.keymap.set('n', '<C-t>', keep_focus(api.node.open.tab), opts 'Open in new tab (keep focus)')
+
+    -- Ergonomic split-open: bare keys (we're already in the tree buffer, no Ctrl needed).
+    --   v = vertical split (side-by-side)   s = horizontal split (stacked)
+    -- All keep focus in the tree so you can open multiple files back-to-back.
+    -- Drop the defaults that would clash: bare `s` (system_run) and visual-mode `v`
+    -- (visual selection is pointless inside the tree).
+    pcall(vim.keymap.del, 'n', 's', { buffer = bufnr })
+    vim.keymap.set('n', 'v', keep_focus(api.node.open.vertical), opts 'Open: Vertical Split (keep focus)')
+    vim.keymap.set('n', 's', keep_focus(api.node.open.horizontal), opts 'Open: Horizontal Split (keep focus)')
+    -- keep <C-y> too, for muscle memory (default <C-v> is eaten by Windows Terminal paste)
+    vim.keymap.set('n', '<C-y>', keep_focus(api.node.open.vertical), opts 'Open: Vertical Split (keep focus)')
   end,
 }
 
@@ -1389,7 +1442,31 @@ local function set_context_highlights()
   vim.api.nvim_set_hl(0, 'TreesitterContext', { bg = '#3d2a1a' }) -- dark orange/brown bg
   vim.api.nvim_set_hl(0, 'TreesitterContextLineNumber', { fg = '#e37d3b', bg = '#3d2a1a' })
   vim.api.nvim_set_hl(0, 'TreesitterContextSeparator', { fg = '#e37d3b' }) -- orange separator line
+  -- make window split borders clearly visible (default tokyonight is near-invisible)
+  vim.api.nvim_set_hl(0, 'WinSeparator', { fg = '#e37d3b', bg = 'NONE', bold = true })
 end
+
+-- Single global statusline so horizontal splits show a thin WinSeparator line
+-- (with per-window statuslines the divider is the statusline bar, not WinSeparator)
+vim.opt.laststatus = 3
+
+-- Per-pane filename indicator. laststatus=3 leaves only one statusline, so put a
+-- small winbar (filename + modified flag) at the top of each normal window.
+-- Skip floating windows and special buffers (nvim-tree, terminals, help, ...).
+local function set_winbar()
+  if vim.api.nvim_win_get_config(0).relative ~= '' then
+    return -- floating window
+  end
+  if vim.bo.buftype ~= '' then
+    vim.wo.winbar = nil -- non-file buffer (tree/terminal/help/quickfix)
+    return
+  end
+  vim.wo.winbar = ' %t%( %m%)' -- %t = filename only, %m = [+] when modified
+end
+vim.api.nvim_create_autocmd({ 'BufWinEnter', 'WinEnter', 'BufWritePost' }, {
+  callback = set_winbar,
+})
+
 set_context_highlights()
 
 vim.api.nvim_create_autocmd('ColorScheme', {
@@ -1590,27 +1667,6 @@ do
 
   vim.keymap.set('x', '<leader>sa', ':SnippetAdd<CR>', { desc = '[S]nippet [A]dd from selection' })
 end
-
-vim.keymap.set('n', '<leader>cf', function()
-  local file = vim.api.nvim_buf_get_name(0)
-  if not (file:match '%.cpp$' or file:match '%.hpp$') then
-    print 'Not a .cpp/.hpp file'
-    return
-  end
-  vim.cmd 'w'
-  vim.fn.jobstart({ 'clang-format', '-style=google', '-i', file }, {
-    on_exit = function(_, code)
-      vim.schedule(function()
-        if code == 0 then
-          vim.cmd 'checktime'
-          print 'clang-format done'
-        else
-          print('clang-format failed (exit ' .. code .. ')')
-        end
-      end)
-    end,
-  })
-end, { desc = '[C]lang [F]ormat current buffer' })
 
 ---------------------------------------------------------------------
 -- The line beneath this is called `modeline`. See `:help modeline`
