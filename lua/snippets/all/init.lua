@@ -518,4 +518,78 @@ find_package(kash 1.0 CONFIG REQUIRED)        # version is checked vs FooConfigV
 target_link_libraries(app PRIVATE kash::kash)  # include dirs + std + deps all 
 # propagate]]
   ),
+  simple(
+    'randomcpp',
+    [[
+  std::random_device rd;
+  std::mt19937 gen(rd());                       // one engine, created once, passed by reference
+  std::uniform_real_distribution<double> dist(lo, hi);
+  double x = dist(gen);]]
+  ),
+  simple(
+    'clang-format_benoits_style',
+    [[
+ColumnLimit: 100
+---
+Language: Cpp
+BasedOnStyle: LLVM
+IndentWidth: 2
+TabWidth: 2
+UseTab: Never
+PointerAlignment: Left
+ReferenceAlignment: Left
+NamespaceIndentation: None
+AccessModifierOffset: -2
+BreakAfterReturnType: All
+ReflowComments: false
+SortIncludes: Never
+SpaceBeforeParens: Never
+SpacesInParens: Custom
+SpacesInParensOptions:
+  InEmptyParentheses: false
+  Other: true
+SpaceAfterTemplateKeyword: true
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+  AfterClass: true
+  AfterStruct: true
+  AfterUnion: true
+  AfterEnum: true
+  AfterNamespace: true
+  AfterControlStatement: Never
+  BeforeElse: true
+  BeforeCatch: true
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false]]
+  ),
+  simple(
+    'bitbucket_pipeline',
+    [[
+# Enforce formatting in CI. Checks ONLY the files changed in the PR (diff against the
+# destination branch), so existing unformatted code needs no upfront reformat.
+# clang-format comes from the pinned pre-commit hook, not the system.
+image: python:3.12
+
+pipelines:
+  pull-requests:
+    '**':
+      - step:
+          name: formatting (pre-commit, changed files)
+          caches:
+            - pip
+          script:
+            - pip install pre-commit
+            - git fetch origin "$BITBUCKET_PR_DESTINATION_BRANCH"
+            - pre-commit run --from-ref "origin/$BITBUCKET_PR_DESTINATION_BRANCH" --to-ref HEAD]]
+  ),
+  simple(
+    'pyplot_import',
+    [[
+import matplotlib as plt
+import numpy as np
+import pandas as pd]]
+  ),
 }
