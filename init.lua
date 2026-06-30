@@ -238,8 +238,9 @@ vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' }
 -- vim.keymap.set('n', '<down>', '<cmd>echo "Use j to move!!"<CR>')
 
 -- Keybinds to make split navigation easier.
---  Use CTRL+<hjkl> to switch between windows
---
+--  Use CTRL+<hjkl> to switch between nvim windows. These stay entirely inside
+--  nvim (no escaping to tmux); to switch a tmux pane while in nvim use the
+--  tmux prefix (C-Space then h/j/k/l). See ~/dotfiles/tmux.conf.
 --  See `:help wincmd` for a list of all window commands
 vim.keymap.set('n', '<C-h>', '<C-w><C-h>', { desc = 'Move focus to the left window' })
 vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right window' })
@@ -1084,6 +1085,17 @@ require('lazy').setup({
         styles = {
           comments = { italic = false }, -- Disable italics in comments
         },
+        -- Pure black background. Tweak `bg` to taste: #16161e for default-ish
+        -- dark, #000000 for full black (OLED-friendly).
+        on_colors = function(colors)
+          local bg = '#000000'
+          colors.bg = bg
+          colors.bg_float = bg
+          colors.bg_popup = bg
+          colors.bg_sidebar = bg
+          colors.bg_statusline = bg
+          colors.bg_dark = bg
+        end,
       }
 
       -- Load the colorscheme here.
