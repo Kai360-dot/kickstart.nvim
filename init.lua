@@ -98,6 +98,10 @@ vim.g.loaded_netrwPlugin = 1
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = false
 
+-- Ensure tools installed under ~/.local/bin (e.g. ruff) are found by conform/LSP
+-- regardless of which shell launched nvim.
+vim.env.PATH = vim.fn.expand '~/.local/bin' .. ':' .. vim.env.PATH
+
 -- Personal global clang-format style, shipped with this config so it follows
 -- the repo to any machine. clangd/clang-format walk up from a file's directory
 -- and use the nearest .clang-format, so this ~/.clang-format is the default for
@@ -114,6 +118,25 @@ do
       'DerivePointerAlignment: false',
       '',
     }, global_clang_format)
+  end
+end
+
+-- Personal global Ruff (Python) config, same model as ~/.clang-format above.
+-- Ruff uses a project's nearest pyproject.toml/ruff.toml when present, and falls
+-- back to this user-level ~/.config/ruff/ruff.toml everywhere else. Written only
+-- if absent, so local edits survive.
+do
+  local ruff_dir = vim.fn.expand '~/.config/ruff'
+  local global_ruff = ruff_dir .. '/ruff.toml'
+  if vim.fn.filereadable(global_ruff) == 0 then
+    vim.fn.mkdir(ruff_dir, 'p')
+    vim.fn.writefile({
+      'line-length = 88',
+      '',
+      '[format]',
+      'quote-style = "double"',
+      '',
+    }, global_ruff)
   end
 end
 
@@ -961,8 +984,10 @@ require('lazy').setup({
         -- CMakeLists.txt / *.cmake -> formatted with cmake-format (from the
         -- `cmakelang` Mason package). Runs on <leader>f and on save.
         cmake = { 'cmake_format' },
-        -- Conform can also run multiple formatters sequentially
-        -- python = { "isort", "black" },
+        -- Conform can also run multiple formatters sequentially.
+        -- Python -> ruff: sort imports (isort-equivalent) then format (black-equivalent).
+        -- Honors a repo's pyproject.toml/ruff.toml, else ~/.config/ruff/ruff.toml.
+        python = { 'ruff_organize_imports', 'ruff_format' },
         --
         -- You can use 'stop_after_first' to run the first available formatter from the list
         -- javascript = { "prettierd", "prettier", stop_after_first = true },
