@@ -1147,6 +1147,33 @@ require('lazy').setup({
     },
   },
 
+  { -- Neogen: generate Google-style Python docstrings and JavaDoc-style Doxygen for C++
+    'danymat/neogen',
+    dependencies = { 'nvim-treesitter/nvim-treesitter' },
+    config = function()
+      require('neogen').setup {
+        snippet_engine = 'luasnip',
+        languages = {
+          python = { template = { annotation_convention = 'google_docstrings' } },
+          cpp = { template = { annotation_convention = 'doxygen' } },
+        },
+      }
+      local ng = require 'neogen'
+      vim.keymap.set('n', '<leader>nf', function()
+        ng.generate { type = 'func' }
+      end, { desc = '[N]eogen [f]unction' })
+      vim.keymap.set('n', '<leader>nc', function()
+        ng.generate { type = 'class' }
+      end, { desc = '[N]eogen [c]lass' })
+      vim.keymap.set('n', '<leader>nt', function()
+        ng.generate { type = 'type' }
+      end, { desc = '[N]eogen [t]ype' })
+      vim.keymap.set('n', '<leader>nF', function()
+        ng.generate { type = 'file' }
+      end, { desc = '[N]eogen [F]ile' })
+    end,
+  },
+
   -- The following comments only work if you have downloaded the kickstart repo, not just copy pasted the
   -- init.lua. If you want these files, they are in the repository, so you can just download them and
   -- place them in the correct locations.
@@ -1197,6 +1224,7 @@ require('lazy').setup({
 
 -- NOTE: Custom code by Kai Ruth
 --
+-- 2-space indentation for C and C++ (Google style)
 vim.api.nvim_create_autocmd('FileType', {
   pattern = { 'c', 'cpp' },
   callback = function()
@@ -1206,7 +1234,6 @@ vim.api.nvim_create_autocmd('FileType', {
     vim.opt_local.expandtab = true
   end,
 })
-
 --NOTE: Line length limit
 vim.opt.colorcolumn = '81'
 vim.opt.textwidth = 80
@@ -1215,7 +1242,7 @@ vim.api.nvim_set_hl(0, 'ColorColumn', { bg = '#2a2a2a' })
 vim.keymap.set('n', '<leader>r', function()
   if vim.bo.filetype == 'python' then
     vim.cmd 'write' -- save the file
-    vim.cmd('!python ' .. vim.fn.expand '%') -- run it
+    vim.cmd('!python3 ' .. vim.fn.expand '%') -- run it
   else
     print 'Not a Python file.'
   end
@@ -1248,6 +1275,16 @@ vim.keymap.set('n', '<leader>R', function()
   -- Compile and run in a terminal split
   vim.cmd('belowright split | terminal ' .. compile_cmd .. ' && ' .. run_cmd)
 end, { desc = 'Compile and Run C++' })
+
+-- NOTE: Save and run current C file
+vim.keymap.set('n', '<leader>K', function()
+  vim.cmd 'w'
+  local filename = vim.fn.expand '%:t:r'
+  local filepath = vim.fn.expand '%:p'
+  local compile_cmd = 'gcc -std=c23 -Wall -Wextra -Wpedantic -o ' .. filename .. ' ' .. filepath
+  local run_cmd = './' .. filename
+  vim.cmd('belowright split | terminal ' .. compile_cmd .. ' && ' .. run_cmd)
+end, { desc = 'Compile and Run C' })
 
 --NOTE: Make the :Git diffthis split vertical
 vim.opt.diffopt:append 'vertical'
