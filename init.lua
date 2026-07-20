@@ -1237,7 +1237,7 @@ require('lazy').setup({
   -- require 'kickstart.plugins.lint',
   -- require 'kickstart.plugins.autopairs',
   -- require 'kickstart.plugins.neo-tree',
-  -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
+  require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   --    This is the easiest way to modularize your config.
@@ -1375,28 +1375,18 @@ vim.opt.shiftwidth = 4 -- size of an indent
 vim.opt.softtabstop = 4 -- how many spaces a Tab feels like while editing
 vim.opt.expandtab = true -- convert tabs to spaces
 
--- NOTE: Tweaks for nvim-tree:
--- empty setup using defaults
-require('nvim-tree').setup()
-
--- OR setup with some options
+-- NOTE: nvim-tree — ONE consolidated setup. setup() REPLACES config (it does not
+-- merge), so every option must live in a single call; otherwise earlier ones are
+-- silently lost. (This used to be three setup() calls, and only the last — which
+-- passed just on_attach — took effect, which is why filters/view never applied.)
 require('nvim-tree').setup {
-  sort = {
-    sorter = 'case_sensitive',
-  },
-  view = {
-    width = 30,
-  },
-  renderer = {
-    group_empty = true,
-  },
+  sort = { sorter = 'case_sensitive' },
+  view = { width = 30 },
+  renderer = { group_empty = true },
   filters = {
-    dotfiles = true,
+    dotfiles = false, -- show dotfiles (toggle live with H)
+    git_ignored = false, -- show .gitignore'd files (toggle live with I)
   },
-}
--- 🌳 extra nvim-tree mappings (from brokenButFeatureful)
-require('nvim-tree').setup {
-  -- keep whatever you already had here: sort/view/renderer/filters…
   on_attach = function(bufnr)
     local api = require 'nvim-tree.api'
 
